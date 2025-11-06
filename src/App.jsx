@@ -4,6 +4,7 @@ import Controls from "./components/Controls";
 import TranscriptDisplay from "./components/TranscriptDisplay";
 import KeywordsDisplay from "./components/KeywordsDisplay";
 import AuraCanvas from "./components/AuraCanvas";
+import useAudioCapture from "./hooks/useAudioCapture";
 import "./index.css";
 
 export default function App() {
@@ -40,6 +41,14 @@ export default function App() {
     };
   }, [sentiment]);
 
+  const { handleStart, handleStop } = useAudioCapture(
+    setTranscript,
+    setIsRecording,
+    setSentiment,
+    setKeywords,
+    { mock: true } // set to false when ready for real mic streaming
+  );
+
   return (
     <div className="w-full h-screen relative overflow-hidden bg-transparent">
       <div className="p5-canvas-wrapper">
@@ -69,8 +78,8 @@ export default function App() {
             >
               <Controls
                 isRecording={isRecording}
-                onStart={() => setIsRecording(true)}
-                onStop={() => setIsRecording(false)}
+                onStart={handleStart}
+                onStop={handleStop}
               />
               <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>
                 Sentiment: <strong>{(sentiment * 100).toFixed(0)}%</strong>
