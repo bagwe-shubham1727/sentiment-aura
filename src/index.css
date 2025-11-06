@@ -1,68 +1,149 @@
+/* src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* fallback styles for non-tailwind users */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --bg: #0b1220;
+  --panel: rgba(8, 10, 14, 0.55);
+  --panel-2: rgba(255, 255, 255, 0.04);
+  --accent: #7c3aed;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: var(--bg);
+  color: #e6eef6;
+}
+
+/* Ensure canvas is behind UI and doesn't capture pointer events */
+.p5-canvas-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Overlay content */
+.app-overlay {
+  position: relative;
+  z-index: 10;
   display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  max-width: 980px;
+  margin: 48px;
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+/* panels */
+.panel {
+  background: rgba(6, 8, 12, 0.62);
+  backdrop-filter: blur(8px) saturate(120%);
+  padding: 14px;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(2, 6, 23, 0.45);
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+/* transcript */
+.transcript {
+  min-height: 160px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 12px;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+.transcript p {
+  margin: 6px 0;
+  line-height: 1.3;
+  color: #dbeafe;
+}
+
+/* keywords */
+.keywords {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.keyword {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.14);
+  border: 1px solid rgba(124, 58, 237, 0.12);
+  font-size: 0.9rem;
+  color: #eff6ff;
+  transform-origin: center;
+  opacity: 0;
+  animation: kwFadeUp 450ms ease forwards;
+}
+
+/* stagger later in JS by setting inline style --delay */
+@keyframes kwFadeUp {
+  from {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
   }
-  a:hover {
-    color: #747bff;
+
+  to {
+    transform: translateY(0px) scale(1);
+    opacity: 1;
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+/* controls */
+.controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* large title */
+.hero-title {
+  font-size: clamp(24px, 5vw, 48px);
+  font-weight: 700;
+  color: #e6eef6;
+  mix-blend-mode: normal;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* small helper */
+.helper {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.95rem;
+}
+
+.record-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff4d4f;
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.9);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.4);
+    opacity: 0.8
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1
   }
 }
