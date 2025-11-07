@@ -18,6 +18,7 @@ export default function useAudioCapture(
     setIsRecording,
     setSentiment,
     setKeywords,
+    setPulse,
     options = { mock: true, targetSampleRate: 16000 }
 ) {
     const audioServiceRef = React.useRef(null);
@@ -30,7 +31,12 @@ export default function useAudioCapture(
                 const res = await axios.post(`${base}/process_text`, { text });
                 if (res?.data) {
                     const { sentiment: s, keywords: ks } = res.data;
-                    if (typeof s === "number") setSentiment(s);
+                    if (typeof s === "number") {
+                        console.log("Received sentiment from backend:", s);
+                        setSentiment(s);
+                        setPulse((p) => p + 1);
+                        console.log("Pulse incremented to:", setPulse);
+                    }
                     if (Array.isArray(ks)) setKeywords(ks);
                 }
             } catch (err) {

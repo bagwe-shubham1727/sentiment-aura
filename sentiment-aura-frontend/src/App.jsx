@@ -8,11 +8,12 @@ import useAudioCapture from "./hooks/useAudioCapture";
 import "./index.css";
 
 export default function App() {
+  const [pulse, setPulse] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState([]);
   const [keywords, setKeywords] = useState([]);
-  const [sentiment, setSentiment] = useState(0.5); // authoritative sentiment from backend
-  const [visualSentiment, setVisualSentiment] = useState(0.5); // eased sentiment used by visuals
+  const [sentiment, setSentiment] = useState(0); // authoritative sentiment from backend
+  const [visualSentiment, setVisualSentiment] = useState(0); // eased sentiment used by visuals
 
   // Smoothly ease visualSentiment toward sentiment whenever sentiment changes
   useEffect(() => {
@@ -46,13 +47,22 @@ export default function App() {
     setIsRecording,
     setSentiment,
     setKeywords,
+    setPulse,
     { mock: true } // set to false when ready for real mic streaming
   );
+
+  useEffect(() => {
+    console.log("Authoritative sentiment:", sentiment);
+  }, [sentiment]);
+
+  useEffect(() => {
+    console.log("Visual sentiment (used by aura):", visualSentiment);
+  }, [visualSentiment]);
 
   return (
     <div className="w-full h-screen relative overflow-hidden bg-transparent">
       <div className="p5-canvas-wrapper">
-        <AuraCanvas sentiment={visualSentiment} />
+        <AuraCanvas sentiment={visualSentiment} pulse={pulse} />
       </div>
 
       <div className="app-overlay">

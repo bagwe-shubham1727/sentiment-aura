@@ -111,14 +111,14 @@ body,
 .hero-title {
   font-size: clamp(24px, 5vw, 48px);
   font-weight: 700;
-  color: #e6eef6;
+  color: #000000;
   mix-blend-mode: normal;
   text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
 }
 
 /* small helper */
 .helper {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(0, 0, 0, 0.7);
   font-size: 0.95rem;
 }
 
