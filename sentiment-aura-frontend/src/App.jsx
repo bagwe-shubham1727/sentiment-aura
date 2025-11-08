@@ -202,7 +202,16 @@ export default function App() {
                   marginTop: 6,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div>AURA ENERGY</div>
+
+                <div
+                  style={{
+                    marginTop: 6,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
                   <div
                     style={{
                       width: 14,

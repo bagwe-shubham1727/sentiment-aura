@@ -40,7 +40,7 @@ export default function useAudioCapture({ getDeepgramToken, onError = () => { } 
                     console.error("Backend failed:", err);
                     onAnalysisResult?.({
                         model: "fallback",
-                        sentiment: 0.5,
+                        sentiment: 0,
                         keywords: text.split(" ").slice(0, 5)
                     });
                     onError(err);
