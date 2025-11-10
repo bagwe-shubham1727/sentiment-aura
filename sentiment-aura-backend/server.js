@@ -1,4 +1,4 @@
-// server.js (fixed: robust rawModelText handling)
+// server.js 
 import express from "express";
 import axios from "axios";
 import dotenv from "dotenv";
@@ -19,9 +19,19 @@ if (!API_KEY) {
     process.exit(1);
 }
 
-/* ---------- prompt builder ---------- */
-function buildPrompt(text) {
-    return `
+// ========== CONSTANTS ==========
+const STOPWORDS = new Set([
+    "the", "and", "a", "an", "in", "on", "at", "for", "to", "of", "is", "are",
+    "was", "were", "it", "this", "that", "with", "as", "by", "from", "be",
+    "have", "has", "had", "i", "we", "you", "they", "he", "she", "them",
+    "but", "or", "not", "so", "if", "then", "there", "their", "our", "my", "your"
+]);
+
+const SENTIMENT_THRESHOLDS = { negative: 0.4, positive: 0.6 };
+const SENTIMENT_MAP = { positive: 0.8, neutral: 0.5, negative: 0.2 };
+
+// ========== PROMPT BUILDER ==========
+const buildPrompt = (text) => `
 You are an analysis engine. Analyze the following text and respond ONLY with valid JSON (no explanation, no extra text).
 
 The JSON must contain exactly these fields:
@@ -38,56 +48,83 @@ Guidelines:
 - sentiment: 0 = very negative, 0.5 = neutral, 1 = very positive.
 - sentiment_label: map sentiment to "negative" if <0.4, "neutral" if between 0.4 and 0.6, "positive" if >0.6.
 - confidence: how confident you are that the sentiment label is correct (0..1).
-- keywords: choose 3–7 concise nouns/phrases that best capture the content (no stopwords, avoid punctuation).
-- tone: a single word describing the emotional tone (prefer common single-token words).
+- keywords: choose 3–7 concise nouns/phrases that best capture the content.
+- tone: a single word describing the emotional tone.
 - short_summary: one short sentence capturing the gist.
 
-Return ONLY the JSON object. Example (do not output this example — it is for formatting guidance):
-{
-  "sentiment": 0.82,
-  "sentiment_label": "positive",
-  "confidence": 0.9,
-  "keywords": ["product launch", "team", "excitement"],
-  "tone": "joyful",
-  "short_summary": "The speaker is excited about the product launch and proud of the team."
-}
+Return ONLY the JSON object.
 
 Text to analyze:
 """${text}"""
 `;
-}
 
-/* ---------- call Gemini (axios / REST) ---------- */
+// ========== GEMINI API CALL ==========
 async function callGeminiAPI(text) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`;
 
     const payload = {
-        contents: [
-            {
-                parts: [{ text: buildPrompt(text) }],
-            },
-        ],
+        contents: [{ parts: [{ text: buildPrompt(text) }] }],
         generationConfig: {
             temperature: 0.0,
             maxOutputTokens: 300,
-            candidateCount: 1,
-        },
+            candidateCount: 1
+        }
     };
 
-    const headers = { "Content-Type": "application/json" };
-    const { data } = await axios.post(endpoint, payload, { headers, timeout: 25000 });
+    const { data } = await axios.post(endpoint, payload, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 25000
+    });
+
     return data;
 }
 
-/* ---------- fallback keyword extractor ---------- */
-function extractKeywordsFallback(text, limit = 5) {
-    if (!text || typeof text !== "string") return [];
+// ========== TEXT EXTRACTION ==========
+function extractTextFromResponse(geminiRaw) {
+    const candidate = geminiRaw?.candidates?.[0] ||
+        geminiRaw?.output?.[0] ||
+        geminiRaw?.response;
 
-    const stopwords = new Set([
-        "the", "and", "a", "an", "in", "on", "at", "for", "to", "of", "is", "are", "was", "were", "it",
-        "this", "that", "with", "as", "by", "from", "be", "have", "has", "had", "i", "we", "you", "they",
-        "he", "she", "them", "but", "or", "not", "so", "if", "then", "there", "their", "our", "my", "your",
-    ]);
+    if (!candidate) {
+        return typeof geminiRaw === "string" ? geminiRaw : JSON.stringify(geminiRaw || "");
+    }
+
+    const text = candidate?.content?.parts?.[0]?.text ||
+        candidate?.content?.parts?.[0] ||
+        candidate?.content ||
+        candidate?.text ||
+        (Array.isArray(candidate?.content) && candidate.content[0]?.text);
+
+    return typeof text === "string" ? text : JSON.stringify(text || candidate);
+}
+
+// ========== JSON PARSING ==========
+function parseJsonFromText(rawText) {
+    if (!rawText || typeof rawText !== "string") return null;
+
+    const match = rawText.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+
+    try {
+        return JSON.parse(match[0]);
+    } catch {
+        // Try cleaning common JSON issues
+        const cleaned = match[0]
+            .replace(/,\s*}/g, "}")
+            .replace(/,\s*]/g, "]")
+            .replace(/'/g, '"');
+
+        try {
+            return JSON.parse(cleaned);
+        } catch {
+            return null;
+        }
+    }
+}
+
+// ========== KEYWORD EXTRACTION ==========
+function extractKeywords(text, limit = 6) {
+    if (!text || typeof text !== "string") return [];
 
     const tokens = text
         .replace(/[^\w\s]/g, " ")
@@ -96,170 +133,133 @@ function extractKeywordsFallback(text, limit = 5) {
         .filter(Boolean);
 
     const freq = new Map();
+
     for (let i = 0; i < tokens.length; i++) {
-        const t = tokens[i];
-        if (stopwords.has(t) || t.length <= 2) continue;
-        freq.set(t, (freq.get(t) || 0) + 1);
+        const token = tokens[i];
+        if (STOPWORDS.has(token) || token.length <= 2) continue;
+
+        freq.set(token, (freq.get(token) || 0) + 1);
+
+        // Bigrams
         if (i + 1 < tokens.length) {
-            const b = `${t} ${tokens[i + 1]}`;
-            if (![...b.split(" ")].some((w) => stopwords.has(w))) {
-                freq.set(b, (freq.get(b) || 0) + 1.2);
+            const bigram = `${token} ${tokens[i + 1]}`;
+            if (![...bigram.split(" ")].some(w => STOPWORDS.has(w))) {
+                freq.set(bigram, (freq.get(bigram) || 0) + 1.2);
             }
         }
     }
 
-    const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1]);
-    const picks = sorted.slice(0, limit).map((p) => p[0]);
-    return picks.map((k) => k.trim());
+    return [...freq.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([word]) => word.trim());
 }
 
-/* ---------- robust JSON parse helper ---------- */
-function parseJsonFromText(rawText) {
-    if (!rawText || typeof rawText !== "string") return null;
-    const match = rawText.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    try {
-        return JSON.parse(match[0]);
-    } catch (e) {
-        let cleaned = match[0].replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/'/g, '"');
-        try {
-            return JSON.parse(cleaned);
-        } catch (e2) {
-            return null;
-        }
+// ========== FIELD NORMALIZERS ==========
+function normalizeSentiment(value, label) {
+    if (typeof value === "number") {
+        // Handle percentage format
+        if (value > 1 && value <= 100) value /= 100;
+        return Math.max(0, Math.min(1, value));
     }
+
+    // Derive from label if no numeric value
+    if (label) {
+        const labelLower = String(label).toLowerCase();
+        return SENTIMENT_MAP[labelLower] ?? 0.5;
+    }
+
+    return 0.5;
 }
 
-/* ---------- main endpoint ---------- */
+function deriveConfidence(sentiment) {
+    return Math.max(0.5, Math.min(0.99, 0.4 + Math.abs(sentiment - 0.5) * 1.1));
+}
+
+function deriveTone(sentiment) {
+    if (sentiment >= 0.7) return "positive";
+    if (sentiment <= 0.3) return "negative";
+    return "neutral";
+}
+
+function deriveSummary(parsed, rawText, originalText) {
+    if (parsed?.short_summary) return String(parsed.short_summary);
+
+    const source = rawText || originalText;
+    const lines = source.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+    return lines.length
+        ? lines.slice(0, 2).join(" ").slice(0, 220)
+        : originalText.slice(0, 220);
+}
+
+// ========== RESPONSE BUILDER ==========
+function buildAnalysisResponse(parsed, geminiRaw, rawText, originalText) {
+    const sentiment = normalizeSentiment(parsed?.sentiment, parsed?.sentiment_label);
+    const confidence = parsed?.confidence ?? deriveConfidence(sentiment);
+    const tone = parsed?.tone || deriveTone(sentiment);
+    const short_summary = deriveSummary(parsed, rawText, originalText);
+
+    let keywords = Array.isArray(parsed?.keywords)
+        ? parsed.keywords.map(String)
+        : [];
+
+    if (keywords.length === 0) {
+        const keywordSource = short_summary || rawText || originalText;
+        keywords = extractKeywords(keywordSource);
+    }
+
+    keywords = Array.from(new Set(keywords)).slice(0, 7);
+
+    let sentiment_label = parsed?.sentiment_label || "neutral";
+    if (!parsed?.sentiment_label) {
+        if (sentiment < SENTIMENT_THRESHOLDS.negative) sentiment_label = "negative";
+        else if (sentiment > SENTIMENT_THRESHOLDS.positive) sentiment_label = "positive";
+    }
+
+    return {
+        model: MODEL,
+        sentiment,
+        sentiment_label: String(sentiment_label),
+        confidence: Number(confidence.toFixed(3)),
+        keywords,
+        tone,
+        short_summary,
+        raw: geminiRaw
+    };
+}
+
+// ========== MAIN ENDPOINT ==========
 app.post("/process_text", async (req, res) => {
     try {
         const { text } = req.body ?? {};
-        if (!text || typeof text !== "string") return res.status(400).json({ error: "Missing 'text' in request body" });
 
-        // call Gemini
+        if (!text || typeof text !== "string") {
+            return res.status(400).json({ error: "Missing 'text' in request body" });
+        }
+
         const geminiRaw = await callGeminiAPI(text);
+        const rawText = extractTextFromResponse(geminiRaw);
 
-        // Candidate extraction: support multiple response shapes
-        const candidate = geminiRaw?.candidates?.[0] || geminiRaw?.output?.[0] || geminiRaw?.response || null;
+        let parsed = parseJsonFromText(rawText);
 
-        // Build a safe string for rawModelText (always a string)
-        let rawModelText = "";
-        if (!candidate) {
-            // if geminiRaw is a string use it; otherwise stringify for debugging
-            rawModelText = typeof geminiRaw === "string" ? geminiRaw : JSON.stringify(geminiRaw || "");
-        } else {
-            // Try common nested fields, fall back to JSON string of candidate
-            rawModelText =
-                (candidate?.content?.parts?.[0]?.text) ||
-                (candidate?.content?.parts?.[0]) ||
-                candidate?.content ||
-                candidate?.text ||
-                (Array.isArray(candidate?.content) && candidate.content[0]?.text) ||
-                JSON.stringify(candidate);
-            // ensure string
-            if (typeof rawModelText !== "string") {
-                try {
-                    rawModelText = JSON.stringify(rawModelText);
-                } catch (e) {
-                    rawModelText = String(rawModelText || "");
-                }
-            }
-        }
-
-        // parse JSON from text (only pass strings)
-        let parsed = null;
-        if (typeof rawModelText === "string") parsed = parseJsonFromText(rawModelText);
-
-        // fallback: structuredOutput fields
+        // Fallback: check for structured output fields
         if (!parsed) {
-            if (geminiRaw?.structuredOutput) parsed = geminiRaw.structuredOutput;
-            else if (geminiRaw?.structured_output) parsed = geminiRaw.structured_output;
+            parsed = geminiRaw?.structuredOutput || geminiRaw?.structured_output;
         }
 
-        // normalized response fields
-        let sentiment = null;
-        let sentiment_label = "neutral";
-        let confidence = null;
-        let keywords = [];
-        let tone = null;
-        let short_summary = "";
+        const response = buildAnalysisResponse(parsed, geminiRaw, rawText, text);
+        return res.json(response);
 
-        if (parsed && typeof parsed === "object") {
-            if (typeof parsed.sentiment === "number") sentiment = parsed.sentiment;
-            if (parsed.sentiment_label) sentiment_label = String(parsed.sentiment_label);
-            if (typeof parsed.confidence === "number") confidence = parsed.confidence;
-            if (Array.isArray(parsed.keywords)) keywords = parsed.keywords.map(String);
-            if (parsed.tone) tone = String(parsed.tone);
-            if (parsed.short_summary) short_summary = String(parsed.short_summary);
-        }
-
-        // If sentiment missing but label exists, map label -> numeric
-        if (sentiment === null && parsed && parsed.sentiment_label) {
-            const lab = String(parsed.sentiment_label).toLowerCase();
-            if (lab === "positive") sentiment = 0.8;
-            if (lab === "neutral") sentiment = 0.5;
-            if (lab === "negative") sentiment = 0.2;
-        }
-
-        // confidence heuristic
-        if (confidence === null) {
-            if (typeof sentiment === "number") confidence = Math.max(0.5, Math.min(0.99, 0.4 + Math.abs(sentiment - 0.5) * 1.1));
-            else confidence = 0.6;
-        }
-
-        // normalize sentiment
-        if (typeof sentiment === "number") {
-            if (sentiment > 1 && sentiment <= 100) sentiment = sentiment / 100;
-            sentiment = Math.max(0, Math.min(1, Number(sentiment) || 0.5));
-        } else {
-            sentiment = 0.5;
-        }
-
-        // If keywords empty, run fallback extractor using best source available
-        if (!Array.isArray(keywords) || keywords.length === 0) {
-            const sourceForKeywords = (short_summary && typeof short_summary === "string" && short_summary) || (rawModelText && String(rawModelText)) || text;
-            keywords = extractKeywordsFallback(sourceForKeywords, 6);
-        }
-
-        // tone fallback
-        if (!tone) {
-            if (sentiment >= 0.7) tone = "positive";
-            else if (sentiment <= 0.3) tone = "negative";
-            else tone = "neutral";
-        }
-
-        // short_summary fallback - use parsed.short_summary if present, else create from rawModelText or original text
-        if (!short_summary) {
-            if (parsed?.short_summary) short_summary = String(parsed.short_summary);
-            else {
-                // safe: rawModelText is string here
-                const s = typeof rawModelText === "string" ? rawModelText : String(rawModelText || "");
-                // try to pick first non-empty line or truncate
-                const firstLines = s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-                short_summary = firstLines.length ? firstLines.slice(0, 2).join(" ").slice(0, 220) : text.slice(0, 220);
-            }
-        }
-
-        // dedupe keywords & limit
-        keywords = Array.from(new Set((keywords || []).map(String))).slice(0, 7);
-
-        return res.json({
-            model: MODEL,
-            sentiment,
-            sentiment_label,
-            confidence: Number(confidence.toFixed(3)),
-            keywords,
-            tone,
-            short_summary,
-            raw: geminiRaw,
-        });
     } catch (err) {
-        console.error("Gemini axios error:", err?.response?.data || err.message || err);
+        console.error("Gemini API error:", err?.response?.data || err.message);
         const status = err?.response?.status || 500;
-        return res.status(status).json({ error: err?.response?.data || err?.message || "Unknown error" });
+        return res.status(status).json({
+            error: err?.response?.data || err?.message || "Unknown error"
+        });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`Gemini proxy listening on http://localhost:${PORT}  (model=${MODEL})`);
+    console.log(`Gemini proxy listening on http://localhost:${PORT} (model=${MODEL})`);
 });
