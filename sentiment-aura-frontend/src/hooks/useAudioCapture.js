@@ -28,21 +28,60 @@ export default function useAudioCapture({ getDeepgramToken, onError = () => { } 
 
             if (is_final && text.trim()) {
                 try {
-                    console.log("Calling backend...");
+                    console.log("Calling backend with text:", text);
+
                     const res = await axios.post(
                         `${import.meta.env.VITE_BACKEND_URL || "http://localhost:3001"}/process_text`,
                         { text },
                         { timeout: 20000 }
                     );
+
                     console.log("Backend response:", res.data);
-                    onAnalysisResult?.(res.data);
+
+                    // Handle new response structure
+                    if (res.data.success && res.data.data) {
+                        // Extract the analysis data from the nested structure
+                        const analysisData = {
+                            ...res.data.data,
+                            // Optionally include metadata for debugging or display
+                            metadata: res.data.metadata
+                        };
+
+                        console.log("Analysis result:", analysisData);
+                        onAnalysisResult?.(analysisData);
+                    } else {
+                        // Handle error response from backend
+                        console.error("Backend returned error:", res.data.error);
+                        throw new Error(res.data.error?.message || "Backend returned unsuccessful response");
+                    }
+
                 } catch (err) {
-                    console.error("Backend failed:", err);
-                    onAnalysisResult?.({
+                    console.error("Backend call failed:", err.message);
+
+                    // Check if it's an Axios error with response data
+                    if (err.response?.data) {
+                        console.error("Error details:", err.response.data);
+
+                        // If backend returned structured error, log it
+                        if (err.response.data.error) {
+                            console.error("Backend error message:", err.response.data.error.message);
+                        }
+                    }
+
+                    // Fallback response for UI to continue working
+                    const fallbackData = {
                         model: "fallback",
-                        sentiment: 0,
-                        keywords: text.split(" ").slice(0, 5)
-                    });
+                        sentiment: 0.5,
+                        sentiment_label: "neutral",
+                        confidence: 0.5,
+                        keywords: text.split(" ").filter(w => w.length > 3).slice(0, 5),
+                        tone: "neutral",
+                        short_summary: text.slice(0, 100),
+                        error: true,
+                        error_message: err.message
+                    };
+
+                    onAnalysisResult?.(fallbackData);
                     onError(err);
                 }
             }
