@@ -1,115 +1,80 @@
 // src/components/Controls.jsx
+/**
+ * Recording Controls Component
+ * Provides start/stop recording functionality with loading states
+ */
+
 import React from "react";
 
-export default function Controls({ isRecording, onStart, onStop }) {
+export default function Controls({
+  isRecording,
+  isConnecting,
+  onStart,
+  onStop,
+}) {
+  // Determine button state
+  const isDisabled = isConnecting;
+  const buttonText = isConnecting
+    ? "Connecting..."
+    : isRecording
+    ? "Stop Recording"
+    : "Start Recording";
+
+  const buttonIcon = isConnecting ? "⏳" : isRecording ? "⏹" : "🎤";
+
+  const buttonColor = isRecording
+    ? "rgba(255, 80, 80, 0.9)" // Red when recording
+    : "rgba(80, 200, 120, 0.9)"; // Green when ready
+
+  const handleClick = () => {
+    if (isConnecting) return; // Don't allow clicks while connecting
+
+    if (isRecording) {
+      onStop();
+    } else {
+      onStart();
+    }
+  };
+
   return (
-    <div
-      className="controls"
-      role="group"
-      aria-label="Recording controls"
-      style={{ width: "100%" }}
+    <button
+      onClick={handleClick}
+      disabled={isDisabled}
+      style={{
+        width: "100%",
+        padding: "12px 16px",
+        fontSize: "14px",
+        fontWeight: 600,
+        background: isDisabled ? "rgba(100, 100, 100, 0.5)" : buttonColor,
+        border: "none",
+        borderRadius: "8px",
+        color: "white",
+        cursor: isDisabled ? "not-allowed" : "pointer",
+        transition: "all 0.2s ease",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        opacity: isDisabled ? 0.6 : 1,
+        boxShadow: isDisabled ? "none" : `0 2px 8px ${buttonColor}40`,
+      }}
+      onMouseEnter={(e) => {
+        if (!isDisabled && !isRecording) {
+          e.target.style.transform = "translateY(-2px)";
+          e.target.style.boxShadow = `0 4px 12px ${buttonColor}60`;
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!isDisabled) {
+          e.target.style.transform = "translateY(0)";
+          e.target.style.boxShadow = `0 2px 8px ${buttonColor}40`;
+        }
+      }}
+      aria-label={buttonText}
+      aria-busy={isConnecting}
     >
-      {isRecording ? (
-        <button
-          onClick={onStop}
-          aria-pressed="true"
-          className="control-button stop-button"
-          style={{
-            width: "100%",
-            padding: "16px 24px",
-            borderRadius: 16,
-            background: "linear-gradient(135deg, #ff4d4f, #ff7875)",
-            color: "#fff",
-            fontWeight: 700,
-            fontSize: 16,
-            border: "none",
-            cursor: "pointer",
-            boxShadow: "0 8px 24px rgba(255, 77, 79, 0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            transition: "all 0.3s ease",
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          <span
-            className="recording-pulse"
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              background: "#fff",
-              animation: "pulse 1.5s infinite",
-            }}
-          />
-          Stop Recording
-        </button>
-      ) : (
-        <button
-          onClick={onStart}
-          aria-pressed="false"
-          className="control-button start-button"
-          style={{
-            width: "100%",
-            padding: "16px 24px",
-            borderRadius: 16,
-            background: "linear-gradient(135deg, #10b981, #34d399)",
-            color: "#fff",
-            fontWeight: 700,
-            fontSize: 16,
-            border: "none",
-            cursor: "pointer",
-            boxShadow: "0 8px 24px rgba(16, 185, 129, 0.4)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 10,
-            transition: "all 0.3s ease",
-          }}
-        >
-          <span style={{ fontSize: 20 }}>▶</span>
-          Start Recording
-        </button>
-      )}
-
-      <style>{`
-        .control-button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 12px 32px rgba(0,0,0,0.3);
-        }
-
-        .control-button:active {
-          transform: translateY(0);
-        }
-
-        .stop-button::before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-          transition: left 0.5s;
-        }
-
-        .stop-button:hover::before {
-          left: 100%;
-        }
-
-        @keyframes pulse {
-          0%, 100% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.3);
-            opacity: 0.7;
-          }
-        }
-      `}</style>
-    </div>
+      <span style={{ fontSize: "18px" }}>{buttonIcon}</span>
+      <span>{buttonText}</span>
+    </button>
   );
 }

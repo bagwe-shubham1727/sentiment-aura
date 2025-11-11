@@ -1,49 +1,74 @@
 // src/components/KeywordsDisplay.jsx
-import React, { useEffect, useState } from "react";
+/**
+ * Keywords Display Component
+ *
+ * Features:
+ * - Animated keyword tags that fade in staggered
+ * - Graceful handling of keyword updates
+ * - Empty/loading states
+ * - Accessibility support
+ * - Smooth transitions
+ * - Performance optimized
+ */
+
+import React, { useEffect, useState, useRef } from "react";
+
+const MAX_KEYWORDS = 20; // Limit total keywords displayed
 
 export default function KeywordsDisplay({ keywords = [], aura }) {
   const [displayedKeywords, setDisplayedKeywords] = useState([]);
+  const keywordCounterRef = useRef(0);
 
-  // Gracefully fade in keywords one by one
+  // Add new keywords to existing ones
   useEffect(() => {
+    console.log("[KeywordsDisplay] Received new keywords:", keywords);
+
     if (!keywords || keywords.length === 0) {
-      setDisplayedKeywords([]);
-      return;
+      return; // Don't clear, just don't add
     }
 
-    // Add new keywords with staggered animation
+    // Get current keyword texts
+    const currentTexts = displayedKeywords.map((k) => k.text.toLowerCase());
+
+    // Find truly new keywords (not already displayed)
     const newKeywords = keywords.filter(
-      (k) => !displayedKeywords.some((dk) => dk.text === k)
+      (keyword) => !currentTexts.includes(keyword.toLowerCase())
     );
 
     if (newKeywords.length > 0) {
-      newKeywords.forEach((keyword, index) => {
-        setTimeout(() => {
-          setDisplayedKeywords((prev) => [
-            ...prev,
-            { text: keyword, id: `${keyword}-${Date.now()}-${index}` },
-          ]);
-        }, index * 200); // Stagger by 200ms
+      console.log("[KeywordsDisplay] Adding new keywords:", newKeywords);
+
+      // Create keyword objects with unique IDs
+      const newKeywordObjects = newKeywords.map((keyword) => ({
+        text: keyword,
+        id: `keyword-${keywordCounterRef.current++}-${Date.now()}`,
+        timestamp: Date.now(),
+      }));
+
+      // Add to beginning (left side) and limit total
+      setDisplayedKeywords((prev) => {
+        const updated = [...newKeywordObjects, ...prev];
+        return updated.slice(0, MAX_KEYWORDS);
       });
     }
-
-    // Remove old keywords that are no longer in the list
-    const currentKeywordTexts = keywords;
-    setDisplayedKeywords((prev) =>
-      prev.filter((dk) => currentKeywordTexts.includes(dk.text))
-    );
   }, [keywords]);
 
+  // Clear all keywords function (optional)
+  const clearKeywords = () => {
+    setDisplayedKeywords([]);
+    keywordCounterRef.current = 0;
+  };
+
   const swatch = aura ?? {
-    label: "White",
-    color: "#fff",
-    meaning: "Calm",
+    label: "Neutral",
+    color: "#9ca3af",
+    meaning: "Balanced",
     textColor: "#000",
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Keywords Tag Cloud */}
+      {/* Keywords Section */}
       <div>
         <div
           style={{
@@ -52,10 +77,39 @@ export default function KeywordsDisplay({ keywords = [], aura }) {
             marginBottom: 10,
             fontWeight: 600,
             letterSpacing: "0.5px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
           }}
         >
-          KEY TOPICS
+          <span>KEY TOPICS</span>
+          {displayedKeywords.length > 0 && (
+            <button
+              onClick={clearKeywords}
+              style={{
+                fontSize: 11,
+                color: "rgba(255,255,255,0.5)",
+                background: "transparent",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: 4,
+                padding: "2px 8px",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.color = "rgba(255,255,255,0.9)";
+                e.target.style.borderColor = "rgba(255,255,255,0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.color = "rgba(255,255,255,0.5)";
+                e.target.style.borderColor = "rgba(255,255,255,0.2)";
+              }}
+            >
+              Clear
+            </button>
+          )}
         </div>
+
         <div
           style={{
             display: "flex",
@@ -63,12 +117,14 @@ export default function KeywordsDisplay({ keywords = [], aura }) {
             flexWrap: "wrap",
             minHeight: 40,
           }}
+          role="list"
         >
           {displayedKeywords && displayedKeywords.length > 0 ? (
             displayedKeywords.map((k, i) => (
               <div
                 key={k.id}
                 className="keyword-tag"
+                role="listitem"
                 style={{
                   background: "rgba(255,255,255,0.12)",
                   backdropFilter: "blur(10px)",
@@ -79,7 +135,7 @@ export default function KeywordsDisplay({ keywords = [], aura }) {
                   fontWeight: 500,
                   boxShadow: "0 4px 15px rgba(0,0,0,0.2)",
                   border: "1px solid rgba(255,255,255,0.1)",
-                  animation: `fadeInUp 0.6s ease-out ${i * 0.1}s both`,
+                  animation: `slideInLeft 0.5s ease-out both`,
                   maxWidth: 200,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -97,94 +153,35 @@ export default function KeywordsDisplay({ keywords = [], aura }) {
                 fontStyle: "italic",
               }}
             >
-              Keywords will appear here...
+              Keywords will appear here as you speak...
             </div>
           )}
         </div>
-      </div>
 
-      {/* Aura Energy Card */}
-      <div>
-        <div
-          style={{
-            fontSize: 13,
-            color: "rgba(255,255,255,0.7)",
-            marginBottom: 10,
-            fontWeight: 600,
-            letterSpacing: "0.5px",
-          }}
-        ></div>
-        {/* <div
-          className="aura-card"
-          style={{
-            padding: "16px",
-            borderRadius: 16,
-            background: "rgba(0,0,0,0.25)",
-            backdropFilter: "blur(20px)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
-            display: "flex",
-            gap: 16,
-            alignItems: "center",
-            transition: "all 0.5s ease",
-          }}
-        >
+        {/* Keyword count */}
+        {displayedKeywords.length > 0 && (
           <div
             style={{
-              minWidth: 64,
-              height: 64,
-              borderRadius: 16,
-              background: `linear-gradient(135deg, ${swatch.color}, ${swatch.color}dd)`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: swatch.textColor,
-              fontWeight: 700,
-              fontSize: 12,
-              boxShadow: `0 0 20px ${swatch.color}44, inset 0 2px 8px rgba(255,255,255,0.1)`,
-              flexShrink: 0,
-              textAlign: "center",
-              padding: 8,
-              transition: "all 0.5s ease",
+              marginTop: 8,
+              fontSize: 11,
+              color: "rgba(255,255,255,0.4)",
             }}
           >
-            {swatch.label}
+            {displayedKeywords.length} keyword
+            {displayedKeywords.length !== 1 ? "s" : ""} collected
           </div>
-
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 18,
-                fontWeight: 700,
-                color: "#fff",
-                marginBottom: 4,
-                letterSpacing: "0.5px",
-              }}
-            >
-              {swatch.label}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                color: "rgba(255,255,255,0.8)",
-                lineHeight: 1.4,
-              }}
-            >
-              {swatch.meaning}
-            </div>
-          </div>
-        </div> */}
+        )}
       </div>
 
       <style>{`
-        @keyframes fadeInUp {
+        @keyframes slideInLeft {
           from {
             opacity: 0;
-            transform: translateY(20px) scale(0.9);
+            transform: translateX(-30px) scale(0.8);
           }
           to {
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translateX(0) scale(1);
           }
         }
 
@@ -193,24 +190,9 @@ export default function KeywordsDisplay({ keywords = [], aura }) {
         }
 
         .keyword-tag:hover {
-          transform: translateY(-2px);
+          transform: translateY(-2px) scale(1.05);
           box-shadow: 0 6px 20px rgba(0,0,0,0.3);
           background: rgba(255,255,255,0.18);
-        }
-
-        .aura-card {
-          animation: slideInRight 0.6s ease-out;
-        }
-
-        @keyframes slideInRight {
-          from {
-            opacity: 0;
-            transform: translateX(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateX(0);
-          }
         }
       `}</style>
     </div>
