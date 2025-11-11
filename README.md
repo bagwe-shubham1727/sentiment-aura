@@ -4,6 +4,8 @@
 
 Transform your spoken words into a living, breathing aura. Sentiment Aura combines AI-powered sentiment analysis with stunning orbital particle systems and hexagonal grids to create a mesmerizing visual representation of your emotions.
 
+Link - https://sentiment-aura-iota.vercel.app/
+
 <img width="3016" height="1472" alt="image" src="https://github.com/user-attachments/assets/425595f3-3bbe-47e6-acf3-5a183343e25d" />
 
 
