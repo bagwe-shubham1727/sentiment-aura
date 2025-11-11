@@ -4,6 +4,11 @@
 
 Transform your spoken words into a living, breathing aura. Sentiment Aura combines AI-powered sentiment analysis with stunning orbital particle systems and hexagonal grids to create a mesmerizing visual representation of your emotions.
 
+<img width="3016" height="1472" alt="image" src="https://github.com/user-attachments/assets/425595f3-3bbe-47e6-acf3-5a183343e25d" />
+
+
+<img width="3020" height="1484" alt="image" src="https://github.com/user-attachments/assets/4e352d16-a7de-4fd6-8f17-00fae9c5ab10" />
+
 
 
 ## 🌟 Features
